@@ -16,6 +16,11 @@ Item {
   readonly property real paintedCenterX: glyph.x + glyphMetrics.tightBoundingRect.x + tightWidth / 2
   readonly property real baselineY: glyph.y + glyph.baselineOffset
 
+  // Native glyphs are hinted to the pixel grid and turn jagged at any angle
+  // that is not a right angle, so rotate those as a smoothed texture instead.
+  layer.enabled: rotation % 90 !== 0
+  layer.smooth: true
+
   TextMetrics {
     id: glyphMetrics
     font.family: root.fontFamily
