@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.system-load",
+  "name": "System Load",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "CPU, GPU, NPU and video engine load with clocks and temperatures",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "System Load",
+    "description": "CPU, GPU, NPU and video engine load with clocks and temperatures",
+    "category": "System",
+    "allowMultiple": false
+  }
+}
