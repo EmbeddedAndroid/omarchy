@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Enable hardware video decoding in Chromium on machines with a V4L2 video decoder
+
+# Chromium decodes video in software unless AcceleratedVideoDecoder is enabled.
+# Chromium keeps only the last --enable-features switch, so the feature is
+# merged into the existing one rather than added on a line of its own.
+
+CONF="$HOME/.config/chromium-flags.conf"
+FEATURE="AcceleratedVideoDecoder"
+
+if [[ -f $CONF ]] && omarchy-hw-video-decoder; then
+  if ! grep -q -- "^--enable-features=" "$CONF"; then
+    echo "--enable-features=$FEATURE" >>"$CONF"
+  elif ! grep -qE -- "^--enable-features=(.*,)?$FEATURE(,|$)" "$CONF"; then
+    sed -i "s/^--enable-features=.*/&,$FEATURE/" "$CONF"
+  fi
+fi

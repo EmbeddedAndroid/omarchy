@@ -37,3 +37,7 @@ They don't get the Chromium extensions above, and they're not themed by Omarchy,
 ## Removing one again
 
 Anything you installed here can be taken back off under _Remove > Browser_. Chromium isn't in that list — it's part of the base system.
+
+## Hardware video decoding
+
+On machines with a V4L2 video decoder, such as Snapdragon laptops, Omarchy turns on Chromium's hardware decoder by adding `AcceleratedVideoDecoder` to the `--enable-features` line in `~/.config/chromium-flags.conf`. Video then plays on the SoC's video engine instead of the CPU, which cuts CPU use for a 1080p stream to a fraction and keeps the fans quiet. Refreshing the Chromium config with `omarchy-refresh-chromium` keeps the setting. Check it at `chrome://gpu`, where _Video Decode_ reads _Hardware accelerated_.
