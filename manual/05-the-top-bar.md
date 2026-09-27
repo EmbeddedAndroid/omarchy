@@ -26,12 +26,13 @@ Nearly every widget does something on left, right, and middle click, and several
 | Bluetooth | Bluetooth panel | Toggle the radio | — |
 | Display | Display panel | — | Scroll: brightness |
 | Power | Power panel | Toggle the battery percentage | — |
+| System load | System load panel | Open btop | — |
 | Media | Play/pause | Cover-art popup | Middle: next · scroll: prev/next |
 | Agents | Agents panel | Launch your agent | Middle: next subscription |
 | Tray | Hover to reveal the drawer | Right on the chevron to manage | — |
 | Omarchy update | Run the update | — | — |
 
-Not everything in that table is on your bar out of the box. The media widget (MPRIS now-playing, with a scrolling track and artist) and the microphone widget are both built in but off by default — add them if you want them, as described below.
+Not everything in that table is on your bar out of the box. The media widget (MPRIS now-playing, with a scrolling track and artist), the microphone widget, and the system load widget are built in but off by default — add them if you want them, as described below.
 
 ## The panels
 
@@ -55,6 +56,7 @@ The panels aren't read-outs. They're where you actually do the thing:
 - **Power** shows battery stats, switches power profiles (it remembers a separate choice for battery and AC), and prints some system info.
 - **Display** carries a brightness slider, text size, monitor scaling presets, and — when you have more than one screen — per-monitor controls. See [monitors](33-monitors.md) for the deeper story.
 - **Clock** opens a month grid with ISO week numbers and month stepping.
+- **System load** reads `C 23%  G 8%  N 41%  V` in the bar for the CPU, GPU, NPU and video engine, dimmed while idle, in the accent color while busy, and with the hottest temperature outlined when a sensor nears its throttle point. The video engine has no load counter, so `V` lights while it is powered. Its panel shows every core's load by cluster with the cluster clocks, the GPU clock and busiest GPU apps, NPU scalar, vector and matrix load, whether the video engine is decoding or encoding and for which apps, temperatures and fans, and memory by program. GPU and NPU readings come from nvtop and appear only when nvtop reports them; anything a machine cannot measure is left out.
 
 Every panel takes the keyboard as well as the mouse: arrows move, Return activates, Tab steps to the neighbouring panel, and Escape closes.
 

@@ -1,0 +1,147 @@
+#!/bin/bash
+
+# omarchy:summary=Print CPU, frequency, thermal, fan and memory readings for the system load widget
+# omarchy:group=system
+# omarchy:hidden=true
+
+# One tab-separated record per line:
+#   cpu    <idle> <total>              aggregate /proc/stat jiffies
+#   cpuN   <idle> <total>              per core
+#   freq   <cpus> <cur kHz> <max kHz>  per cpufreq policy
+#   temp   <group> <m°C>               hottest zone per group (cpu gpu npu ddr)
+#   hot    <zone> <m°C> <limit m°C>    zone closest to its throttle point
+#   fan    <label> <rpm>                label is empty when the driver has none
+#   vpu    <active|idle>               video engine, when a V4L2 codec exists
+#   memory <used kB> <total kB>
+#   app    <resident kB> <name>        with --processes: top programs by memory
+#   vpuapp <decode|encode> <name>      with --processes: programs using the codec
+# OMARCHY_SYSTEM_LOAD_ROOT prefixes /proc and /sys, for tests.
+
+root=${OMARCHY_SYSTEM_LOAD_ROOT:-}
+
+awk '/^cpu/ {
+  idle = $5 + $6
+  total = 0
+  for (i = 2; i <= NF; i++) total += $i
+  printf "%s\t%s\t%s\n", $1, idle, total
+}' "$root/proc/stat"
+
+for policy in "$root"/sys/devices/system/cpu/cpufreq/policy*; do
+  [[ -r $policy/scaling_cur_freq ]] || continue
+  read -r cpus <"$policy/related_cpus"
+  read -r cur <"$policy/scaling_cur_freq"
+  read -r max <"$policy/cpuinfo_max_freq"
+  printf 'freq\t%s\t%s\t%s\n' "${cpus// /,}" "$cur" "$max"
+done
+
+declare -A hottest
+hot_zone="" hot_temp=0 hot_limit=0 hot_margin=999999
+for zone in "$root"/sys/class/thermal/thermal_zone*; do
+  [[ -r $zone/type && -r $zone/temp ]] || continue
+  read -r type <"$zone/type"
+  read -r temp <"$zone/temp" 2>/dev/null || continue
+  case $type in
+    cpu*) group=cpu ;;
+    gpu*) group=gpu ;;
+    nsp*) group=npu ;;
+    ddr*) group=ddr ;;
+    *) continue ;;
+  esac
+  (( temp > ${hottest[$group]:-0} )) && hottest[$group]=$temp
+
+  passive=0 critical=0
+  for trip in "$zone"/trip_point_*_type; do
+    [[ -r $trip ]] || continue
+    read -r kind <"$trip"
+    read -r limit <"${trip%_type}_temp"
+    if [[ $kind == "passive" ]]; then
+      (( passive == 0 || limit < passive )) && passive=$limit
+    elif [[ $kind == "critical" ]]; then
+      (( critical == 0 || limit < critical )) && critical=$limit
+    fi
+  done
+  if (( passive > 0 )); then
+    limit=$passive
+  elif (( critical > 0 )); then
+    limit=$(( critical - 20000 ))
+  else
+    continue
+  fi
+  if (( limit - temp < hot_margin )); then
+    hot_margin=$(( limit - temp ))
+    hot_zone=$type hot_temp=$temp hot_limit=$limit
+  fi
+done
+for group in cpu gpu npu ddr; do
+  [[ -n ${hottest[$group]} ]] && printf 'temp\t%s\t%s\n' "$group" "${hottest[$group]}"
+done
+[[ -n $hot_zone ]] && printf 'hot\t%s\t%s\t%s\n' "$hot_zone" "$hot_temp" "$hot_limit"
+
+for fan in "$root"/sys/class/hwmon/hwmon*/fan*_input; do
+  [[ -r $fan ]] || continue
+  read -r rpm <"$fan" 2>/dev/null || continue
+  label=""
+  [[ -r ${fan%_input}_label ]] && read -r label <"${fan%_input}_label"
+  printf 'fan\t%s\t%s\n' "$label" "$rpm"
+done
+
+# V4L2 codec devices: the video engine is powered only while a session is open.
+declare -A codec_kind
+vpu=""
+for dev in "$root"/sys/class/video4linux/video*; do
+  [[ -r $dev/name ]] || continue
+  read -r name <"$dev/name"
+  case ${name,,} in
+    *decoder*) codec_kind[/dev/${dev##*/}]=decode ;;
+    *encoder*) codec_kind[/dev/${dev##*/}]=encode ;;
+    *) continue ;;
+  esac
+  status=""
+  [[ -r $dev/device/power/runtime_status ]] && read -r status <"$dev/device/power/runtime_status"
+  if [[ $status == "active" ]]; then
+    vpu=active
+  elif [[ -z $vpu ]]; then
+    vpu=idle
+  fi
+done
+[[ -n $vpu ]] && printf 'vpu\t%s\n' "$vpu"
+
+awk '
+  /^MemTotal:/ { total = $2 }
+  /^MemAvailable:/ { avail = $2 }
+  END { if (total > 0) printf "memory\t%d\t%d\n", total - avail, total }
+' "$root/proc/meminfo"
+
+# Resident memory summed per program name, so a multi-process app is one entry.
+# Shared pages count in every process that maps them: an upper bound.
+if [[ ${1:-} == "--processes" ]]; then
+  awk '
+    BEGINFILE { if (ERRNO != "") nextfile }
+    /^Name:/ { name = $2; pid[name] = FILENAME }
+    /^VmRSS:/ { rss[name] += $2 }
+    END { for (n in rss) printf "app\t%d\t%s\t%s\n", rss[n], n, pid[n] }
+  ' "$root"/proc/[0-9]*/status 2>/dev/null | sort -t$'\t' -k2,2nr | head -n 6 |
+    while IFS=$'\t' read -r kind kb name status; do
+      # The kernel keeps 15 characters of a name; take a clipped one from argv[0].
+      if (( ${#name} == 15 )) && [[ -r ${status%/status}/cmdline ]]; then
+        IFS= read -r -d '' argv0 <"${status%/status}/cmdline"
+        argv0=${argv0##*/}
+        [[ $argv0 == "$name"* ]] && name=$argv0
+      fi
+      printf '%s\t%s\t%s\n' "$kind" "$kb" "$name"
+    done
+
+  # Programs holding a codec device open; only the caller's own are visible.
+  if (( ${#codec_kind[@]} )); then
+    match=()
+    for node in "${!codec_kind[@]}"; do
+      match+=(${match[@]:+-o} -lname "$node")
+    done
+    find "$root"/proc/[0-9]*/fd -maxdepth 1 \( "${match[@]}" \) -printf '%h\t%l\n' 2>/dev/null | sort -u |
+      while IFS=$'\t' read -r fds node; do
+        [[ -r ${fds%/fd}/comm ]] || continue
+        read -r name <"${fds%/fd}/comm"
+        printf 'vpuapp\t%s\t%s\n' "${codec_kind[$node]}" "$name"
+      done | sort -u
+  fi
+fi
