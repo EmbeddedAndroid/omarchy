@@ -71,12 +71,15 @@ The Omarchy shell owns idle behavior, and the timings are a top-level `idle` blo
   "version": 1,
   "idle": {
     "screensaver": 150,
-    "lock": 300
+    "lock": 300,
+    "keyboard": 30
   }
 }
 ```
 
 Both numbers are seconds counted from the moment you went idle — not from each other. So with the defaults, the screensaver comes up after two and a half minutes and the lock screen takes over at five minutes, whether or not the screensaver ran. Save the file and the shell picks up the new timings right away.
+
+`keyboard` turns the keyboard backlight off after that many seconds idle and back on at the next key press or mouse move, on the lock screen too, at the level you last set with the backlight keys. A backlight you switched off with those keys stays off. Set it to `0` to leave the backlight alone.
 
 If you dismiss the screensaver before the lock deadline, that counts as activity and the pending lock is cancelled. You don't get locked out for glancing at your machine.
 

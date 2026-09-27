@@ -43,10 +43,17 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+// Starting the screensaver can make the compositor report activity; that is
+// not the user while the screensaver is up or still launching.
+function screensaverHoldsIdle(started, windowCount, launching) {
+  return !!started && (windowCount > 0 || !!launching)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    screensaverHoldsIdle: screensaverHoldsIdle
   }
 }

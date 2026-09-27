@@ -11,27 +11,44 @@ fi
 
 direction="${1:-up}"
 
-# Find keyboard backlight device (look for *kbd_backlight* pattern in leds class).
-device=""
-for candidate in /sys/class/leds/*kbd_backlight*; do
-  if [[ -e $candidate ]]; then
-    device="$(basename "$candidate")"
-    break
-  fi
-done
+# Find keyboard backlight device (a *kbd_backlight* LED).
+device="$(brightnessctl --list --class=leds --machine-readable | awk -F, '$1 ~ /kbd_backlight/ { print $1; exit }')"
 
 if [[ -z $device ]]; then
   echo "No keyboard backlight device found" >&2
   exit 1
 fi
 
+# "off" keeps the level it turned out for "restore". The level set from the
+# keys is kept across sessions; 0 there means the user switched the backlight
+# off, and only then does "restore" leave a dark keyboard dark.
+saved_level="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-keyboard-level"
+user_level="$HOME/.local/state/omarchy/keyboard-backlight"
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  current_brightness="$(brightnessctl -d "$device" get)"
+  if (( current_brightness > 0 )); then
+    printf '%s\n' "$current_brightness" >"$saved_level"
+    brightnessctl -d "$device" set 0 >/dev/null
+  fi
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  if [[ -f $saved_level ]]; then
+    brightnessctl -d "$device" set "$(<"$saved_level")" >/dev/null
+    rm -f "$saved_level"
+  elif (( $(brightnessctl -d "$device" get) == 0 )); then
+    if [[ -f $user_level ]]; then
+      level="$(<"$user_level")"
+    else
+      level="$(brightnessctl -d "$device" max)"
+    fi
+    (( level > 0 )) && brightnessctl -d "$device" set "$level" >/dev/null
+  fi
   exit 0
 fi
+
+# A manual change replaces any level waiting to be restored.
+rm -f "$saved_level"
 
 # Get current and max brightness to determine step size.
 max_brightness="$(brightnessctl -d "$device" max)"
@@ -55,4 +72,6 @@ fi
 
 # Set the new brightness.
 brightnessctl -d "$device" set "$new_brightness" >/dev/null
+mkdir -p "${user_level%/*}"
+printf '%s\n' "$new_brightness" >"$user_level"
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
