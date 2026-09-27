@@ -3,7 +3,9 @@
   "idle": {
     "screensaver": 150,
     "lock": 300,
-    "keyboard": 30
+    "keyboard": 30,
+    "suspend": 1800,
+    "suspendOnAc": false
   },
   "bar": {
     "position": "top",

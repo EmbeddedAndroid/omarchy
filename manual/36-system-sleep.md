@@ -8,6 +8,12 @@ On a laptop, Omarchy remembers your power profile separately for plugged in and 
 
 You can see what your machine offers with `omarchy powerprofiles list`, and set the one you want for the state you're currently in with `omarchy powerprofiles set autodetect power-saver`. To set the other state without unplugging anything, name it directly: `omarchy powerprofiles set battery power-saver`. Whatever you pick is what you'll get back the next time you're in that state.
 
+### Idle suspend
+
+On battery, Omarchy suspends after 30 minutes without input, well after the screen has locked and turned off. Plugged in, it never suspends from idle: the screen still locks and blanks, and the machine stays awake. Playing video, anything else that inhibits idle, and Stay Awake all keep it from suspending.
+
+Change the delay with `idle.suspend` in `~/.config/omarchy/shell.json` (seconds, `0` turns it off), and set `idle.suspendOnAc` to `true` if you want it to suspend on AC as well. Hiding suspend with `omarchy toggle suspend` turns idle suspend off too.
+
 ### Toggle suspend
 
 You toggle suspend by running `omarchy toggle suspend` from the terminal. That just reveals/hides the option under _System_ (or `Super + Esc`), and then you can see if it works consistently on your system. If not, you can hide it again with the same command.
