@@ -28,6 +28,11 @@ assertDeepEqual(
   { windows: { b: true }, count: 1 },
   'idle removes closed screensaver windows'
 )
+assertEqual(idle.screensaverHoldsIdle(true, 1, false), true, 'idle ignores activity while the screensaver is up')
+assertEqual(idle.screensaverHoldsIdle(true, 0, true), true, 'idle ignores activity while the screensaver launches')
+assertEqual(idle.screensaverHoldsIdle(true, 0, false), false, 'idle takes activity once the screensaver is gone')
+assertEqual(idle.screensaverHoldsIdle(false, 1, true), false, 'idle takes activity when no screensaver started this cycle')
+
 assertDeepEqual(
   idle.screensaverWindowsAfter({ a: true }, '', false),
   { windows: { a: true }, count: 1 },

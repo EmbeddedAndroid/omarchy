@@ -16,14 +16,17 @@ Item {
   readonly property string stayAwakeStatePath: stayAwakeStateDir + "/stay-awake"
   readonly property int defaultScreensaverSeconds: 150
   readonly property int defaultLockSeconds: 300
+  readonly property int defaultKeyboardSeconds: 30
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
     ? shell.shellConfig.idle : (shell && shell.idleConfig ? shell.idleConfig : ({}))
   readonly property int screensaverTimeoutSeconds: secondsFromConfig(idleConfig.screensaver, defaultScreensaverSeconds)
   readonly property int lockTimeoutSeconds: secondsFromConfig(idleConfig.lock, defaultLockSeconds)
+  readonly property int keyboardTimeoutSeconds: secondsFromConfig(idleConfig.keyboard, defaultKeyboardSeconds)
   readonly property int firstIdleTimeoutSeconds: Math.min(screensaverTimeoutSeconds, lockTimeoutSeconds)
   readonly property int screensaverDelaySeconds: Math.max(0, screensaverTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
+  readonly property bool keyboardIdleEnabled: idleEnabled && keyboardTimeoutSeconds > 0
   readonly property string screensaverClass: "org.omarchy.screensaver"
 
   property bool stayAwake: false
@@ -32,6 +35,7 @@ Item {
   property bool pendingStayAwakePersist: false
   property bool idledThisCycle: false
   property bool screensaverStartedThisCycle: false
+  property bool keyboardBacklightOff: false
   property string lastEvent: "starting"
   property string lastEventAt: ""
   property var screensaverWindows: ({})
@@ -104,7 +108,11 @@ Item {
     lockTimer.stop()
     screensaverLaunchGraceTimer.stop()
 
-    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "omarchy-system-wake")
+    if (root.idledThisCycle) {
+      runProcess(wakeProcess, "wake", "omarchy-system-wake")
+      // omarchy-system-wake restores the keyboard backlight too.
+      root.keyboardBacklightOff = false
+    }
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
@@ -155,6 +163,10 @@ Item {
     }
   }
 
+  function screensaverHoldsIdle() {
+    return IdleModel.screensaverHoldsIdle(root.screensaverStartedThisCycle, root.screensaverWindowCount, screensaverLaunchGraceTimer.running)
+  }
+
   function handleActiveSignal() {
     if (!root.idledThisCycle) return
 
@@ -162,12 +174,26 @@ Item {
     // the lock timer running once the screensaver exists (or during its short
     // launch grace); Hyprland window events cancel the cycle if it exits before
     // the normal lock deadline.
-    if (root.screensaverStartedThisCycle && (root.screensaverWindowCount > 0 || screensaverLaunchGraceTimer.running)) {
+    if (screensaverHoldsIdle()) {
       logEvent("idle-monitor-active", "screensaver cycle remains armed")
       return
     }
 
     cancelIdleCycle("activity")
+  }
+
+  function setKeyboardBacklightOff(off) {
+    if (root.keyboardBacklightOff === off) return
+    root.keyboardBacklightOff = off
+    logEvent("keyboard-backlight", off ? "off" : "restore")
+    Quickshell.execDetached(["omarchy-brightness-keyboard", off ? "off" : "restore"])
+  }
+
+  onKeyboardIdleEnabledChanged: if (!keyboardIdleEnabled) setKeyboardBacklightOff(false)
+
+  function handleKeyboardIdleChanged() {
+    if (!keyboardIdleMonitor.isIdle && screensaverHoldsIdle()) return
+    setKeyboardBacklightOff(keyboardIdleMonitor.isIdle)
   }
 
   function handleIdleChanged() {
@@ -189,6 +215,8 @@ Item {
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
       lock: root.lockTimeoutSeconds,
+      keyboard: root.keyboardTimeoutSeconds,
+      keyboardBacklightOff: root.keyboardBacklightOff,
       screensaverDelay: root.screensaverDelaySeconds,
       lockDelay: root.lockDelaySeconds,
       screensaverWindows: root.screensaverWindowCount,
@@ -254,6 +282,14 @@ Item {
     timeout: root.firstIdleTimeoutSeconds
     respectInhibitors: true
     onIsIdleChanged: root.handleIdleChanged()
+  }
+
+  IdleMonitor {
+    id: keyboardIdleMonitor
+    enabled: root.keyboardIdleEnabled
+    timeout: Math.max(1, root.keyboardTimeoutSeconds)
+    respectInhibitors: true
+    onIsIdleChanged: root.handleKeyboardIdleChanged()
   }
 
   Timer {
@@ -333,6 +369,9 @@ Item {
   Component.onCompleted: {
     logEvent("service-ready")
     refreshStayAwakeState()
+    // A shell started with the keyboard dark cannot tell from the idle
+    // monitor, which reports it active, that a restore is due.
+    if (root.keyboardTimeoutSeconds > 0) Quickshell.execDetached(["omarchy-brightness-keyboard", "restore"])
   }
 
   IpcHandler {
