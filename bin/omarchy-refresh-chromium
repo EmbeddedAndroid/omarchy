@@ -19,6 +19,9 @@ omarchy-refresh-config chromium-flags.conf
 omarchy-install-chromium-copy-url
 omarchy-install-chromium-ytdlp
 
+# Re-enable hardware video decoding on machines that have a decoder
+omarchy-install-chromium-video-decode
+
 # Re-install Google accounts if previously configured
 if [[ $INSTALL_GOOGLE_ACCOUNTS == "true" ]]; then
   omarchy-install-chromium-google-account

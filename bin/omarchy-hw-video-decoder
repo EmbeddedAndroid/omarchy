@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Detect a V4L2 hardware video decoder
+
+# OMARCHY_HW_SYSFS prefixes /sys, for tests.
+for name in "${OMARCHY_HW_SYSFS:-}"/sys/class/video4linux/video*/name; do
+  [[ -r $name ]] || continue
+  read -r device <"$name"
+  [[ ${device,,} == *decoder* ]] && exit 0
+done
+exit 1
