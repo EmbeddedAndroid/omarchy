@@ -49,11 +49,17 @@ function screensaverHoldsIdle(started, windowCount, launching) {
   return !!started && (windowCount > 0 || !!launching)
 }
 
+// Idle suspend runs on battery, or on AC when configured; 0 seconds disables it.
+function suspendArmed(seconds, onBattery, suspendOnAc) {
+  return seconds > 0 && (!!onBattery || !!suspendOnAc)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     eventParts: eventParts,
     screensaverWindowsAfter: screensaverWindowsAfter,
-    screensaverHoldsIdle: screensaverHoldsIdle
+    screensaverHoldsIdle: screensaverHoldsIdle,
+    suspendArmed: suspendArmed
   }
 }

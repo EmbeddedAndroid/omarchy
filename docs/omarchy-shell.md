@@ -143,7 +143,9 @@ string on a miss.
   "idle": {
     "screensaver": 150,
     "lock": 300,
-    "keyboard": 30
+    "keyboard": 30,
+    "suspend": 1800,
+    "suspendOnAc": false
   },
   "bar": {
     "id": "omarchy.bar",
@@ -175,7 +177,7 @@ Rules:
 5. Third-party enabled ⇔ present; for full bar options that means `bar.id`.
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
-7. `idle.screensaver` and `idle.lock` are seconds since user idle began. `idle.keyboard` is the idle seconds before the keyboard backlight turns off; `0` disables it.
+7. `idle.screensaver` and `idle.lock` are seconds since user idle began. `idle.keyboard` is the idle seconds before the keyboard backlight turns off; `0` disables it. `idle.suspend` is the idle seconds before the machine suspends, on battery only unless `idle.suspendOnAc` is `true`; `0` disables it.
 8. `version: 1` is required.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no

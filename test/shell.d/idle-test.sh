@@ -33,6 +33,11 @@ assertEqual(idle.screensaverHoldsIdle(true, 0, true), true, 'idle ignores activi
 assertEqual(idle.screensaverHoldsIdle(true, 0, false), false, 'idle takes activity once the screensaver is gone')
 assertEqual(idle.screensaverHoldsIdle(false, 1, true), false, 'idle takes activity when no screensaver started this cycle')
 
+assertEqual(idle.suspendArmed(1800, true, false), true, 'idle suspend arms on battery')
+assertEqual(idle.suspendArmed(1800, false, false), false, 'idle suspend stays off on AC by default')
+assertEqual(idle.suspendArmed(1800, false, true), true, 'idle suspend arms on AC when configured')
+assertEqual(idle.suspendArmed(0, true, true), false, 'zero seconds disables idle suspend')
+
 assertDeepEqual(
   idle.screensaverWindowsAfter({ a: true }, '', false),
   { windows: { a: true }, count: 1 },

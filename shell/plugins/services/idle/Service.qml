@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import Quickshell.Services.UPower
 import Quickshell.Wayland
 import "IdleModel.js" as IdleModel
 
@@ -17,16 +18,20 @@ Item {
   readonly property int defaultScreensaverSeconds: 150
   readonly property int defaultLockSeconds: 300
   readonly property int defaultKeyboardSeconds: 30
+  readonly property int defaultSuspendSeconds: 1800
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
     ? shell.shellConfig.idle : (shell && shell.idleConfig ? shell.idleConfig : ({}))
   readonly property int screensaverTimeoutSeconds: secondsFromConfig(idleConfig.screensaver, defaultScreensaverSeconds)
   readonly property int lockTimeoutSeconds: secondsFromConfig(idleConfig.lock, defaultLockSeconds)
   readonly property int keyboardTimeoutSeconds: secondsFromConfig(idleConfig.keyboard, defaultKeyboardSeconds)
+  readonly property int suspendTimeoutSeconds: secondsFromConfig(idleConfig.suspend, defaultSuspendSeconds)
+  readonly property bool suspendOnAc: !!(idleConfig && idleConfig.suspendOnAc)
   readonly property int firstIdleTimeoutSeconds: Math.min(screensaverTimeoutSeconds, lockTimeoutSeconds)
   readonly property int screensaverDelaySeconds: Math.max(0, screensaverTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property bool keyboardIdleEnabled: idleEnabled && keyboardTimeoutSeconds > 0
+  readonly property bool suspendIdleEnabled: idleEnabled && IdleModel.suspendArmed(suspendTimeoutSeconds, UPower.onBattery, suspendOnAc)
   readonly property string screensaverClass: "org.omarchy.screensaver"
 
   property bool stayAwake: false
@@ -82,6 +87,12 @@ Item {
     root.screensaverStartedThisCycle = false
     resetScreensaverWindows()
     runProcess(lockProcess, "lock", "omarchy-system-lock")
+  }
+
+  // Suspend hidden with `omarchy toggle suspend` stays off for idle too.
+  function suspendSystem() {
+    logEvent("suspend", "idle " + root.suspendTimeoutSeconds + "s, " + (UPower.onBattery ? "battery" : "ac"))
+    runProcess(suspendProcess, "suspend", "omarchy-toggle-enabled suspend-off || systemctl suspend")
   }
 
   function startIdleCycle() {
@@ -285,6 +296,14 @@ Item {
   }
 
   IdleMonitor {
+    id: suspendIdleMonitor
+    enabled: root.suspendIdleEnabled
+    timeout: Math.max(1, root.suspendTimeoutSeconds)
+    respectInhibitors: true
+    onIsIdleChanged: if (isIdle) root.suspendSystem()
+  }
+
+  IdleMonitor {
     id: keyboardIdleMonitor
     enabled: root.keyboardIdleEnabled
     timeout: Math.max(1, root.keyboardTimeoutSeconds)
@@ -329,6 +348,10 @@ Item {
   Process {
     id: lockProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus) }
+  }
+  Process {
+    id: suspendProcess
+    onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "suspend exitCode=" + exitCode + " status=" + exitStatus) }
   }
   Process {
     id: wakeProcess
